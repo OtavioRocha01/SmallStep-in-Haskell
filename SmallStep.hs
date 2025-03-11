@@ -143,13 +143,31 @@ smallStepC (If TRUE c1 c2,s) = (c1,s)
 smallStepC (If FALSE c1 c2,s) = (c2,s)
 
 smallStepC (While b c, s) = (If b (Seq c (While b c)) Skip, s)
- -- | Twice C   ---- Executa o comando C 2 vezes
- --   | RepeatUntil C B --- Repeat C until B: executa C até que B seja verdadeiro
- --   | ExecN C E      ---- ExecN C n: executa o comando C n vezes
- --   | Assert B C --- Assert B C: caso B seja verdadeiro, executa o comando C
- --   | Swap E E --- recebe duas variáveis e troca o conteúdo delas
-  ---  | DAtrrib E E E E -- Dupla atribuição: recebe duas variáveis "e1" e "e2" e duas expressões "e3" e "e4". Faz e1:=e3 e e2:=e4.
 
+smallStepC (Twice c, s) = (Seq c c, s)
+
+smallStepC (RepeatUntil c b, s) = (While (Not b) c, s)
+
+smallStepC (ExecN c e, s) = (Seq c (If (Igual e (Num 1)) Skip (ExecN c (Sub e (Num 1)))), s)
+
+smallStepC (Assert b c, s) = (If b c Skip, s) --- Assert B C: caso B seja verdadeiro, executa o comando C
+
+smallStepC (Swap e1 e2, s)
+    |   not (isFinalE e1) = let (el, sl) = smallStepE (e1, s) in (Swap el e2, sl)
+smallStepC (Swap (Var x) e2, s) 
+    |   not (isFinalE e2) = let (el, sl) = smallStepE (e2, s) in (Swap (Var x) el, sl)
+smallStepC (Swap (Var x) (Var y), s) = (Skip, mudaVar (mudaVar s x (procuraVar s y)) y (procuraVar s x))
+
+  ---  | DAtrrib E E E E -- Dupla atribuição: recebe duas variáveis "e1" e "e2" e duas expressões "e3" e "e4". Faz e1:=e3 e e2:=e4.
+smallStepC (DAtrrib e1 e2 e3 e4, s)
+    | not (isFinalE e1) = let (el1, sl1) = smallStepE (e1, s) in (DAtrrib el1 e2 e3 e4, sl1)
+smallStepC (DAtrrib (Var x) e2 e3 e4, s)
+    | not (isFinalE e2) = let (el2, sl2) = smallStepE (e2, s) in (DAtrrib (Var x) el2 e3 e4, sl2)
+smallStepC (DAtrrib (Var x) (Var y) e3 e4, s)
+    | not (isFinalE e3) = let (el3, sl3) = smallStepE (e3, s) in (DAtrrib (Var x) (Var y) el3 e4, sl3)
+smallStepC (DAtrrib (Var x) (Var y) (Num n1) e4, s)
+    | not (isFinalE e4) = let (el4, sl4) = smallStepE (e4, s) in (DAtrrib (Var x) (Var y) (Num n1) el4, sl4)
+smallStepC (DAtrrib (Var x) (Var y) (Num n1) (Num n2), s) = (Skip, mudaVar (mudaVar s x n1) y n2)
 
 ----------------------
 --  INTERPRETADORES
