@@ -6,6 +6,7 @@ data E = Num Int
       |Soma E E
       |Sub E E
       |Mult E E
+      |Mod E E -- Mod E E: retorna o resto da divisão de E1 por E2
    deriving(Eq,Show)
 
 data B = TRUE
@@ -90,7 +91,11 @@ smallStepE (Sub (Num n) e, s)          = let (el, sl) = smallStepE (e,s)
 smallStepE (Sub e1 e2,s)               = let (el, sl) = smallStepE (e1,s)
                                          in (Sub el e2, sl)
 
-
+smallStepE (Mod (Num n1) (Num n2), s)  = (Num (mod n1 n2), s)
+smallStepE (Mod (Num n) e, s)          = let (el, sl) = smallStepE (e,s)
+                                         in (Mod (Num n) el, sl)
+smallStepE (Mod e1 e2,s)               = let (el, sl) = smallStepE (e1,s)
+                                         in (Mod el e2, sl)
 
 --- EXPRESSÕES BOOLEANAS
 smallStepB :: (B,Memoria) -> (B, Memoria)
@@ -152,17 +157,9 @@ smallStepC (ExecN c e, s) = (Seq c (If (Igual e (Num 1)) Skip (ExecN c (Sub e (N
 
 smallStepC (Assert b c, s) = (If b c Skip, s) --- Assert B C: caso B seja verdadeiro, executa o comando C
 
-smallStepC (Swap e1 e2, s)
-    |   not (isFinalE e1) = let (el, sl) = smallStepE (e1, s) in (Swap el e2, sl)
-smallStepC (Swap (Var x) e2, s) 
-    |   not (isFinalE e2) = let (el, sl) = smallStepE (e2, s) in (Swap (Var x) el, sl)
-smallStepC (Swap (Var x) (Var y), s) = (Skip, mudaVar (mudaVar s x (procuraVar s y)) y (procuraVar s x))
+smallStepC (Swap (Var x) (Var y), s) = (DAtrrib (Var x) (Var y) (Var y) (Var x), s)
 
   ---  | DAtrrib E E E E -- Dupla atribuição: recebe duas variáveis "e1" e "e2" e duas expressões "e3" e "e4". Faz e1:=e3 e e2:=e4.
-smallStepC (DAtrrib e1 e2 e3 e4, s)
-    | not (isFinalE e1) = let (el1, sl1) = smallStepE (e1, s) in (DAtrrib el1 e2 e3 e4, sl1)
-smallStepC (DAtrrib (Var x) e2 e3 e4, s)
-    | not (isFinalE e2) = let (el2, sl2) = smallStepE (e2, s) in (DAtrrib (Var x) el2 e3 e4, sl2)
 smallStepC (DAtrrib (Var x) (Var y) e3 e4, s)
     | not (isFinalE e3) = let (el3, sl3) = smallStepE (e3, s) in (DAtrrib (Var x) (Var y) el3 e4, sl3)
 smallStepC (DAtrrib (Var x) (Var y) (Num n1) e4, s)
@@ -213,12 +210,7 @@ interpretadorC (c,s) = if (isFinalC c) then (c,s) else interpretadorC (smallStep
 ---
 --- Exemplos de programas para teste
 ---
---- O ALUNO DEVE IMPLEMENTAR EXEMPLOS DE PROGRAMAS QUE USEM:
---  * RepeatUntil C B --- Repeat C until B: executa C até que B seja verdadeiro
- -- * ExecN C E      ---- ExecN C n: executa o comando C n vezes
- -- * Assert B C --- Assert B C: caso B seja verdadeiro, executa o comando C
- -- * Swap E E --- recebe duas variáveis e troca o conteúdo delas
- -- *  DAtrrib E E E E
+
 
 exSigma2 :: Memoria
 exSigma2 = [("x",3), ("y",0), ("z",0)]
@@ -276,3 +268,37 @@ fatorial = (Seq (Atrib (Var "y") (Num 1))
                 (While (Not (Igual (Var "x") (Num 1)))
                        (Seq (Atrib (Var "y") (Mult (Var "y") (Var "x")))
                             (Atrib (Var "x") (Sub (Var "x") (Num 1))))))
+
+
+--- O ALUNO DEVE IMPLEMENTAR EXEMPLOS DE PROGRAMAS QUE USEM:
+--  * RepeatUntil C B --- Repeat C until B: executa C até que B seja verdadeiro
+ -- * ExecN C E      ---- ExecN C n: executa o comando C n vezes
+ -- * Assert B C --- Assert B C: caso B seja verdadeiro, executa o comando C
+ -- * Swap E E --- recebe duas variáveis e troca o conteúdo delas
+ -- *  DAtrrib E E E E
+
+--- Programas Criados
+fibo :: C -- Retorna o z-ésimo número da sequência de Fibonacci
+--- DAtrrib e RepeatUntil
+fibo = (Seq (DAtrrib (Var "x") (Var "y") (Num 1) (Num 1))
+            (RepeatUntil (Seq (If (Leq (Mod (Var "z")(Num 2)) (Num 0)) 
+                    (Atrib (Var "x") (Soma (Var "x") (Var "y"))) 
+                    (Atrib (Var "y") (Soma (Var "x") (Var "y")))) 
+                    (Atrib (Var "z") (Sub (Var "z") (Num 1)))) 
+                (Igual (Var "z") (Num 0))))
+
+
+allEqual :: C -- Recebe 3 variáveis e verifica se todas são iguais, se sim, seta "x" para -1
+--- Assert
+allEqual = Assert (Igual (Var "x") (Var "y")) (Assert (Igual (Var "y") (Var "z")) (Atrib (Var "x") (Sub (Num 0) (Num 1))))
+
+
+potencia :: C -- Recebe 2 variáveis e seta "x" para a potência de "y" elevado a "z"
+--- ExecN
+potencia = (Seq (Atrib (Var "x") (Num 1))
+                (ExecN (Atrib (Var "x") (Mult (Var "x") (Var "y"))) (Var "z")))
+
+
+circularSwap :: C -- Recebe 3 variáveis e faz uma troca circular entre elas
+--- Swap
+circularSwap = Seq (Swap (Var "z") (Var "y")) (Swap (Var "y") (Var "x"))
